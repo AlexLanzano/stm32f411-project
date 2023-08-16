@@ -1,35 +1,44 @@
 TOOLCHAIN_PATH = compiler/arm-none-eabi/bin/arm-none-eabi-
 
 GCC = $(TOOLCHAIN_PATH)gcc
+GPP = $(TOOLCHAIN_PATH)g++
 LD = $(TOOLCHAIN_PATH)ld
 OBJCOPY = $(TOOLCHAIN_PATH)objcopy
 
 INCLUDE = -I.
-CFLAGS = -Wall -Werror -c -ffreestanding -nostdlib -mcpu=cortex-m4 $(INCLUDE) -g \
+CFLAGS = -Wall -Werror -c -ffreestanding -mthumb -mcpu=cortex-m4 $(INCLUDE) -g \
          -MMD -MF $(DEPDIR)/$*.d
+CPPFLAGS = -fno-exceptions -fno-unwind-tables
 LDFLAGS ?= --omagic -static
 
 DEPDIR = .deps/
 
-SOURCE = $(wildcard *.c) \
-         $(wildcard init/*.c) \
-         $(wildcard drivers/*/*.c) \
-         $(wildcard libraries/*.c)
+C_SOURCE = $(wildcard Init/*.c)
 
-OBJECTS = $(patsubst %.c,%.o,$(SOURCE))
+CPP_SOURCE = $(wildcard *.cpp) \
+             $(wildcard Init/*.cpp) \
+             $(wildcard Drivers/*/*.cpp) \
+             $(wildcard Libraries/*.cpp)
 
-DEPENDS = $(patsubst %.c,$(DEPDIR)/%.d,$(SOURCE))
+OBJECTS = $(patsubst %.c,%.c.o,$(C_SOURCE)) \
+          $(patsubst %.cpp,%.cpp.o,$(CPP_SOURCE))
+
+DEPENDS = $(patsubst %.c,$(DEPDIR)/%.d,$(C_SOURCE)) \
+          $(patsubst %.cpp,$(DEPDIR)/%.d,$(CPP_SOURCE))
 
 all: boot.bin
 
 %.d:
 	@mkdir -p $(@D)
 
-%.o: %.c Makefile
+%.c.o: %.c Makefile
 	$(GCC) $(CFLAGS) -o $@ $<
 
+%.cpp.o: %.cpp Makefile
+	$(GPP) $(CPPFLAGS) $(CFLAGS) -o $@ $<
+
 boot.elf: $(OBJECTS) linker.ld
-	$(LD) $(LDFLAGS) -T linker.ld -o $@ $(OBJECTS)
+	$(GPP) -Wl,-N -Wl,-T,linker.ld -mthumb -o $@ $(OBJECTS) -static-libgcc
 
 %.bin: %.elf
 	$(OBJCOPY) $^ -O binary $@
